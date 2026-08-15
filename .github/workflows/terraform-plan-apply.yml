@@ -1,10 +1,10 @@
-name: Terraform Plan & Apply
+name: Terraform Plan & Apply / Destroy
 
-# Reusable workflow: runs `terraform plan` for a single environment folder
-# (dev/uat/prod), uploads the saved plan as an artifact, then - in a
-# separate job - downloads that exact artifact and applies it. Apply refuses
-# to run if the plan artifact is older than PLAN_MAX_AGE_SECONDS, so a stale
-# plan (state may have drifted since it was generated) can never be applied.
+# Reusable workflow: runs `terraform plan` (or `terraform plan -destroy`) for
+# a single environment folder (dev/uat/prod), uploads the saved plan as an
+# artifact, then - in a separate job - downloads that exact artifact and
+# applies it. Apply refuses to run if the plan artifact is older than
+# PLAN_MAX_AGE_SECONDS, so a stale plan can never be applied or destroyed.
 #
 # Called from .github/workflows/terraform-deploy.yml, once per environment
 # that changed.
@@ -17,10 +17,15 @@ on:
         required: true
         type: string
       apply:
-        description: "Whether to run the apply job after planning (false for PR plan-only runs)"
+        description: "Whether to run the apply/destroy job after planning (false for PR plan-only runs)"
         required: false
         type: boolean
         default: true
+      action:
+        description: "deploy (default) or destroy"
+        required: false
+        type: string
+        default: deploy
 
 permissions:
   id-token: write # required for Azure OIDC login
@@ -42,7 +47,7 @@ concurrency:
 
 jobs:
   plan:
-    name: Plan
+    name: Plan (${{ inputs.action }})
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     defaults:
@@ -71,7 +76,12 @@ jobs:
         run: terraform validate
 
       - name: Terraform Plan
-        run: terraform plan -input=false -lock-timeout=5m -out=tfplan
+        run: |
+          DESTROY_FLAG=""
+          if [ "${{ inputs.action }}" = "destroy" ]; then
+            DESTROY_FLAG="-destroy"
+          fi
+          terraform plan -input=false -lock-timeout=5m $DESTROY_FLAG -out=tfplan
 
       - name: Record plan timestamp
         run: date -u +%s > tfplan.timestamp
@@ -93,7 +103,7 @@ jobs:
             const plan = execSync('terraform show -no-color tfplan', { cwd: '${{ inputs.environment }}', maxBuffer: 10 * 1024 * 1024 }).toString();
             const truncated = plan.length > 60000 ? plan.slice(0, 60000) + '\n... (truncated)' : plan;
             const marker = `<!-- terraform-plan-${{ inputs.environment }} -->`;
-            const body = `${marker}\n### Terraform plan: \`${{ inputs.environment }}\`\n<details><summary>Show plan</summary>\n\n\`\`\`\n${truncated}\n\`\`\`\n</details>`;
+            const body = `${marker}\n### Terraform plan (${{ inputs.action }}): \`${{ inputs.environment }}\`\n<details><summary>Show plan</summary>\n\n\`\`\`\n${truncated}\n\`\`\`\n</details>`;
 
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
@@ -119,7 +129,7 @@ jobs:
             }
 
   apply:
-    name: Apply
+    name: ${{ inputs.action == 'destroy' && 'Destroy' || 'Apply' }}
     needs: plan
     if: inputs.apply
     runs-on: ubuntu-latest
@@ -158,5 +168,5 @@ jobs:
             -backend-config="container_name=${{ vars.TF_STATE_CONTAINER }}" \
             -backend-config="use_azuread_auth=true"
 
-      - name: Terraform Apply
+      - name: Terraform Apply / Destroy
         run: terraform apply -input=false -lock-timeout=5m tfplan

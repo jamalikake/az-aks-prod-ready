@@ -6,7 +6,9 @@ name: Terraform Deploy
 # since they all consume the same module code.
 #
 # - pull_request: plan only, for review (posts the plan as a PR comment)
-# - push to main / workflow_dispatch: plan then apply
+# - push to main / workflow_dispatch(action=deploy): plan then apply
+# - workflow_dispatch(action=destroy): plan -destroy then apply (destroy) for
+#   the chosen environment only — never triggered automatically
 
 on:
   push:
@@ -27,10 +29,16 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: "Environment to plan/apply (bypasses change detection)"
+        description: "Environment to target (bypasses change detection)"
         required: true
         type: choice
         options: [dev, uat, prod]
+      action:
+        description: "Action to perform"
+        required: true
+        type: choice
+        default: deploy
+        options: [deploy, destroy]
 
 permissions:
   id-token: write
@@ -43,6 +51,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set.outputs.matrix }}
+      action: ${{ steps.set.outputs.action }}
     steps:
       - uses: actions/checkout@v4
         if: github.event_name != 'workflow_dispatch'
@@ -62,19 +71,22 @@ jobs:
               - 'prod/**'
               - 'modules/**'
 
-      - name: Resolve target environment(s)
+      - name: Resolve target environment(s) and action
         id: set
         env:
           CHANGES: ${{ steps.filter.outputs.changes || '[]' }}
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo 'matrix=["${{ inputs.environment }}"]' >> "$GITHUB_OUTPUT"
+            echo 'action=${{ inputs.action }}' >> "$GITHUB_OUTPUT"
           else
             echo "matrix=$CHANGES" >> "$GITHUB_OUTPUT"
+            echo 'action=deploy' >> "$GITHUB_OUTPUT"
           fi
 
       - name: Summary
         run: |
+          echo "Action: ${{ steps.set.outputs.action }}"
           echo "Targeting environments: ${{ steps.set.outputs.matrix }}"
 
   dev:
@@ -85,6 +97,7 @@ jobs:
     with:
       environment: dev
       apply: ${{ github.event_name != 'pull_request' }}
+      action: ${{ needs.detect-changes.outputs.action }}
     secrets: inherit
 
   uat:
@@ -95,6 +108,7 @@ jobs:
     with:
       environment: uat
       apply: ${{ github.event_name != 'pull_request' }}
+      action: ${{ needs.detect-changes.outputs.action }}
     secrets: inherit
 
   prod:
@@ -105,4 +119,5 @@ jobs:
     with:
       environment: prod
       apply: ${{ github.event_name != 'pull_request' }}
+      action: ${{ needs.detect-changes.outputs.action }}
     secrets: inherit
