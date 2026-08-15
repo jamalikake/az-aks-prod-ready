@@ -49,12 +49,13 @@ module "log_analytics" {
 module "identity" {
   source = "../modules/identity"
 
-  name                = "id-${local.name_prefix}-aks"
-  resource_group_name = module.resource_group.name
-  location            = var.location
-  vnet_id             = module.network.vnet_id
-  private_dns_zone_id = module.network.aks_private_dns_zone_id
-  tags                = local.common_tags
+  name                                 = "id-${local.name_prefix}-aks"
+  resource_group_name                  = module.resource_group.name
+  location                             = var.location
+  vnet_id                              = module.network.vnet_id
+  private_dns_zone_id                  = module.network.aks_private_dns_zone_id
+  private_dns_zone_contributor_enabled = true
+  tags                                 = local.common_tags
 }
 
 module "key_vault" {
@@ -68,6 +69,7 @@ module "key_vault" {
   purge_protection_enabled      = var.key_vault_purge_protection_enabled
   soft_delete_retention_days    = var.key_vault_soft_delete_retention_days
   log_analytics_workspace_id    = module.log_analytics.id
+  enable_diagnostics            = true
   tags                          = local.common_tags
 }
 

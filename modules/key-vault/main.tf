@@ -24,7 +24,7 @@ resource "azurerm_key_vault" "this" {
 }
 
 resource "azurerm_monitor_diagnostic_setting" "this" {
-  count = var.log_analytics_workspace_id != null ? 1 : 0
+  count = var.enable_diagnostics ? 1 : 0
 
   name                       = "diag-${var.name}"
   target_resource_id         = azurerm_key_vault.this.id

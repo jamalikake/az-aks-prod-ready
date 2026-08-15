@@ -38,9 +38,15 @@ variable "soft_delete_retention_days" {
 }
 
 variable "log_analytics_workspace_id" {
-  description = "Log Analytics workspace ID to send diagnostic logs to. Leave null to skip diagnostic settings."
+  description = "Log Analytics workspace ID to send diagnostic logs to."
   type        = string
   default     = null
+}
+
+variable "enable_diagnostics" {
+  description = "Whether to create the diagnostic setting. Must be a static bool (not derived from a resource output) so Terraform can evaluate it at plan time."
+  type        = bool
+  default     = false
 }
 
 variable "tags" {

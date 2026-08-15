@@ -18,7 +18,7 @@ resource "azurerm_role_assignment" "network_contributor" {
 # the control plane identity must be able to create the A record for the
 # API server in that zone.
 resource "azurerm_role_assignment" "private_dns_zone_contributor" {
-  count = var.private_dns_zone_id != null ? 1 : 0
+  count = var.private_dns_zone_contributor_enabled ? 1 : 0
 
   scope                = var.private_dns_zone_id
   role_definition_name = "Private DNS Zone Contributor"

@@ -19,9 +19,15 @@ variable "vnet_id" {
 }
 
 variable "private_dns_zone_id" {
-  description = "ID of the BYO private DNS zone for a private AKS cluster. Leave null to skip the Private DNS Zone Contributor role assignment."
+  description = "ID of the BYO private DNS zone for a private AKS cluster."
   type        = string
   default     = null
+}
+
+variable "private_dns_zone_contributor_enabled" {
+  description = "Whether to create the Private DNS Zone Contributor role assignment. Must be a static bool (not derived from a resource output) so Terraform can evaluate it at plan time."
+  type        = bool
+  default     = false
 }
 
 variable "tags" {
