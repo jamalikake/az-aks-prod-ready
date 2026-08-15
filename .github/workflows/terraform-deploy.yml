@@ -1,0 +1,106 @@
+name: Terraform Deploy
+
+# Detects which environment(s) changed (based on which of dev/, uat/, prod/
+# or the shared modules/ were touched) and runs plan+apply only for those.
+# A change under modules/ is treated as touching all three environments,
+# since they all consume the same module code.
+#
+# - pull_request: plan only, for review (posts the plan as a PR comment)
+# - push to main / workflow_dispatch: plan then apply
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "dev/**"
+      - "uat/**"
+      - "prod/**"
+      - "modules/**"
+      - ".github/workflows/terraform-*.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "dev/**"
+      - "uat/**"
+      - "prod/**"
+      - "modules/**"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to plan/apply (bypasses change detection)"
+        required: true
+        type: choice
+        options: [dev, uat, prod]
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  detect-changes:
+    name: Detect changed environments
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        if: github.event_name != 'workflow_dispatch'
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        if: github.event_name != 'workflow_dispatch'
+        with:
+          filters: |
+            dev:
+              - 'dev/**'
+              - 'modules/**'
+            uat:
+              - 'uat/**'
+              - 'modules/**'
+            prod:
+              - 'prod/**'
+              - 'modules/**'
+
+      - name: Resolve target environment(s)
+        id: set
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo 'matrix=["${{ inputs.environment }}"]' >> "$GITHUB_OUTPUT"
+          else
+            echo "matrix=${{ steps.filter.outputs.changes || '[]' }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Summary
+        run: |
+          echo "Targeting environments: ${{ steps.set.outputs.matrix }}"
+
+  dev:
+    name: dev
+    needs: detect-changes
+    if: contains(fromJSON(needs.detect-changes.outputs.matrix), 'dev')
+    uses: ./.github/workflows/terraform-plan-apply.yml
+    with:
+      environment: dev
+      apply: ${{ github.event_name != 'pull_request' }}
+    secrets: inherit
+
+  uat:
+    name: uat
+    needs: detect-changes
+    if: contains(fromJSON(needs.detect-changes.outputs.matrix), 'uat')
+    uses: ./.github/workflows/terraform-plan-apply.yml
+    with:
+      environment: uat
+      apply: ${{ github.event_name != 'pull_request' }}
+    secrets: inherit
+
+  prod:
+    name: prod
+    needs: detect-changes
+    if: contains(fromJSON(needs.detect-changes.outputs.matrix), 'prod')
+    uses: ./.github/workflows/terraform-plan-apply.yml
+    with:
+      environment: prod
+      apply: ${{ github.event_name != 'pull_request' }}
+    secrets: inherit

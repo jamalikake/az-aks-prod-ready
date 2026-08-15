@@ -1,0 +1,4 @@
+resource_group_name  = "rg-tfstate-aks"
+storage_account_name = "sttfstateaksXXXX"
+container_name        = "tfstate"
+use_azuread_auth       = true

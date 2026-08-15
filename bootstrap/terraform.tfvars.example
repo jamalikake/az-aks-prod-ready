@@ -1,0 +1,9 @@
+resource_group_name  = "rg-tfstate-aks"
+location              = "uksouth"
+storage_account_name  = "sttfstateaksXXXX" # must be globally unique, 3-24 lowercase alphanumeric chars
+container_name        = "tfstate"
+
+tags = {
+  managed_by = "terraform"
+  purpose    = "tfstate"
+}

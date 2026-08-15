@@ -1,0 +1,162 @@
+name: Terraform Plan & Apply
+
+# Reusable workflow: runs `terraform plan` for a single environment folder
+# (dev/uat/prod), uploads the saved plan as an artifact, then - in a
+# separate job - downloads that exact artifact and applies it. Apply refuses
+# to run if the plan artifact is older than PLAN_MAX_AGE_SECONDS, so a stale
+# plan (state may have drifted since it was generated) can never be applied.
+#
+# Called from .github/workflows/terraform-deploy.yml, once per environment
+# that changed.
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: "Environment folder to operate on: dev, uat or prod"
+        required: true
+        type: string
+      apply:
+        description: "Whether to run the apply job after planning (false for PR plan-only runs)"
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  id-token: write # required for Azure OIDC login
+  contents: read
+  pull-requests: write # required to post/update the plan comment on PRs
+
+env:
+  ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  ARM_USE_OIDC: true
+  TF_IN_AUTOMATION: true
+  TF_VERSION: "1.15.8"
+  PLAN_MAX_AGE_SECONDS: 900 # 15 minutes
+
+concurrency:
+  group: terraform-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      # Backend storage account/container are environment-scoped GitHub
+      # Variables (not secrets - they're resource names, not credentials).
+      # The blob key (dev.tfstate/uat.tfstate/prod.tfstate) is already
+      # hardcoded in each environment's backend.tf.
+      - name: Terraform Init
+        run: |
+          terraform init -input=false \
+            -backend-config="resource_group_name=${{ vars.TF_STATE_RESOURCE_GROUP }}" \
+            -backend-config="storage_account_name=${{ vars.TF_STATE_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=${{ vars.TF_STATE_CONTAINER }}" \
+            -backend-config="use_azuread_auth=true"
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        run: terraform plan -input=false -lock-timeout=5m -out=tfplan
+
+      - name: Record plan timestamp
+        run: date -u +%s > tfplan.timestamp
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ inputs.environment }}
+          path: |
+            ${{ inputs.environment }}/tfplan
+            ${{ inputs.environment }}/tfplan.timestamp
+          retention-days: 1
+
+      - name: Comment plan on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { execSync } = require('child_process');
+            const plan = execSync('terraform show -no-color tfplan', { cwd: '${{ inputs.environment }}', maxBuffer: 10 * 1024 * 1024 }).toString();
+            const truncated = plan.length > 60000 ? plan.slice(0, 60000) + '\n... (truncated)' : plan;
+            const marker = `<!-- terraform-plan-${{ inputs.environment }} -->`;
+            const body = `${marker}\n### Terraform plan: \`${{ inputs.environment }}\`\n<details><summary>Show plan</summary>\n\n\`\`\`\n${truncated}\n\`\`\`\n</details>`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find((c) => c.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+  apply:
+    name: Apply
+    needs: plan
+    if: inputs.apply
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: tfplan-${{ inputs.environment }}
+          path: ${{ inputs.environment }}
+
+      - name: Check plan freshness
+        run: |
+          plan_ts=$(cat tfplan.timestamp)
+          now_ts=$(date -u +%s)
+          age=$(( now_ts - plan_ts ))
+          echo "Plan for ${{ inputs.environment }} is ${age}s old (limit: ${PLAN_MAX_AGE_SECONDS}s)"
+          if [ "$age" -gt "$PLAN_MAX_AGE_SECONDS" ]; then
+            echo "::error::Saved plan for ${{ inputs.environment }} is $((age / 60)) minute(s) old - refusing to apply a stale plan. Re-run the workflow to generate a fresh plan."
+            exit 1
+          fi
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        run: |
+          terraform init -input=false \
+            -backend-config="resource_group_name=${{ vars.TF_STATE_RESOURCE_GROUP }}" \
+            -backend-config="storage_account_name=${{ vars.TF_STATE_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=${{ vars.TF_STATE_CONTAINER }}" \
+            -backend-config="use_azuread_auth=true"
+
+      - name: Terraform Apply
+        run: terraform apply -input=false -lock-timeout=5m tfplan
