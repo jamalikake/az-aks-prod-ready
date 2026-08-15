@@ -64,11 +64,13 @@ jobs:
 
       - name: Resolve target environment(s)
         id: set
+        env:
+          CHANGES: ${{ steps.filter.outputs.changes || '[]' }}
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo 'matrix=["${{ inputs.environment }}"]' >> "$GITHUB_OUTPUT"
           else
-            echo "matrix=${{ steps.filter.outputs.changes || '[]' }}" >> "$GITHUB_OUTPUT"
+            echo "matrix=$CHANGES" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Summary
