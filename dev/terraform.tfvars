@@ -35,7 +35,7 @@ user_node_pools = {
     os_disk_size_gb      = 64
     zones                = []
     auto_scaling_enabled = true
-    min_count            = 1
+    min_count            = 0
     max_count            = 3
     node_labels          = { workload = "apps" }
   }

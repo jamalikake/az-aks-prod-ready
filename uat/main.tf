@@ -1,5 +1,6 @@
 locals {
   name_prefix = "${var.project}-${var.environment}"
+  acr_suffix  = substr(replace(data.azurerm_client_config.current.subscription_id, "-", ""), 0, 6)
 
   common_tags = merge(var.tags, {
     environment = var.environment
@@ -76,7 +77,7 @@ module "key_vault" {
 module "acr" {
   source = "../modules/acr"
 
-  name                          = replace("acr${local.name_prefix}", "-", "")
+  name                          = "${replace("acr${local.name_prefix}", "-", "")}${local.acr_suffix}"
   resource_group_name           = module.resource_group.name
   location                      = var.location
   sku                           = var.acr_sku
