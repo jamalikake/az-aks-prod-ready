@@ -64,7 +64,7 @@ module "identity" {
 module "key_vault" {
   source = "../modules/key-vault"
 
-  name                          = "kv-${local.name_prefix}"
+  name                          = "kv-${local.name_prefix}-${local.acr_suffix}"
   resource_group_name           = module.resource_group.name
   location                      = var.location
   sku_name                      = var.key_vault_sku_name
