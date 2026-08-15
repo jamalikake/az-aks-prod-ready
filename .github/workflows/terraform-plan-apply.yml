@@ -26,6 +26,11 @@ on:
         required: false
         type: string
         default: deploy
+      destroy_after_apply:
+        description: "Add a Destroy stage after Apply, gated by a separate manual approval"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   id-token: write # required for Azure OIDC login
@@ -170,3 +175,30 @@ jobs:
 
       - name: Terraform Apply / Destroy
         run: terraform apply -input=false -lock-timeout=5m tfplan
+
+  destroy:
+    name: Destroy
+    needs: apply
+    if: inputs.apply && inputs.destroy_after_apply
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        run: |
+          terraform init -input=false \
+            -backend-config="resource_group_name=${{ vars.TF_STATE_RESOURCE_GROUP }}" \
+            -backend-config="storage_account_name=${{ vars.TF_STATE_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=${{ vars.TF_STATE_CONTAINER }}" \
+            -backend-config="use_azuread_auth=true"
+
+      - name: Terraform Destroy
+        run: terraform destroy -auto-approve -input=false -lock-timeout=5m
