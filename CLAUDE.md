@@ -104,3 +104,33 @@ az role assignment create --assignee <object-id> --role "Azure Kubernetes Servic
 az role assignment create --assignee <object-id> --role "Azure Kubernetes Service RBAC Cluster Admin" --scope "$CLUSTER_ID"
 ```
 Allow up to 5 minutes for RBAC propagation before `kubectl` commands stop returning Forbidden errors.
+
+**Role assignments are destroyed with the cluster (ForceNew resources):** any `azurerm_role_assignment` created manually via CLI against a cluster resource ID is lost when Terraform replaces the cluster (e.g. changing `private_cluster_enabled`). Always manage role assignments in Terraform so they are re-created automatically. If you created them manually first and Terraform later tries to create the same assignment, it will 409-conflict — delete the manual one and let Terraform own it.
+
+**Dev cluster: public API server for local kubectl/k9s:** `dev` runs with `private_cluster_enabled = false` and `api_server_authorized_ip_ranges` set to the developer's public IP. UAT and prod remain fully private. Update `dev/terraform.tfvars` and redeploy when your public IP changes. Changing `private_cluster_enabled` is a ForceNew on the cluster — it destroys and recreates the cluster, wiping all manual role assignments (see above).
+
+**`api_server_authorized_ip_ranges` in AzureRM v4:** the attribute is no longer top-level. Use a dynamic block:
+```hcl
+dynamic "api_server_access_profile" {
+  for_each = !var.private_cluster_enabled && length(var.api_server_authorized_ip_ranges) > 0 ? [1] : []
+  content {
+    authorized_ip_ranges = var.api_server_authorized_ip_ranges
+  }
+}
+```
+
+**Entra ID group for dev:** `grp-aks-dev-admins` (object ID `3fabc5a2-229a-46c2-bdfa-b941f61d16c2`) is managed in `dev/main.tf` with Owner + Azure Kubernetes Service RBAC Cluster Admin at the cluster scope. Add users to this group in Entra ID to grant them cluster access.
+
+**Namespace RBAC module (`modules/aks-namespace-rbac`):** uses Azure RBAC namespace-scoped role assignments (scope: `<cluster_id>/namespaces/<namespace>`). Two roles:
+- `Azure Kubernetes Service RBAC Admin` — read/write/update/delete within the namespace
+- `Azure Kubernetes Service RBAC Reader` — read-only within the namespace
+
+Called via `for_each` map in `dev/main.tf` using the `namespace_rbac` variable. Add a namespace by adding a map entry in `dev/terraform.tfvars` — no new HCL needed:
+```hcl
+namespace_rbac = {
+  "default"  = { admin_principal_ids = ["<group-id>"], reader_principal_ids = [] }
+  "app-team" = { admin_principal_ids = ["<group-id>"], reader_principal_ids = ["<group-id>"] }
+}
+```
+
+**Stale plan timeout in CI:** the apply job rejects plans older than `PLAN_MAX_AGE_SECONDS` (900s / 15 min). When manual approval gates are in place, approve the apply job promptly after the plan completes — don't leave it waiting. If it expires, re-trigger the workflow.
