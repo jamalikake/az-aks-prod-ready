@@ -57,3 +57,14 @@ log_analytics_retention_in_days = 30
 # Public API server for local kubectl/k9s access — update ip when your public IP changes
 private_cluster_enabled         = false
 api_server_authorized_ip_ranges = ["101.0.63.232/32"]
+
+# Entra ID group: grp-aks-dev-admins (created 2026-08-16)
+dev_admin_group_object_id = "3fabc5a2-229a-46c2-bdfa-b941f61d16c2"
+
+# Namespace RBAC examples — add namespaces and principals as needed
+namespace_rbac = {
+  "default" = {
+    admin_principal_ids  = ["3fabc5a2-229a-46c2-bdfa-b941f61d16c2"]
+    reader_principal_ids = []
+  }
+}

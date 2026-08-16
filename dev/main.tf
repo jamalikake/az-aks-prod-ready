@@ -124,3 +124,29 @@ resource "azurerm_role_assignment" "aks_acr_pull" {
   role_definition_name = "AcrPull"
   principal_id         = module.aks.kubelet_identity_object_id
 }
+
+# Cluster-level Owner role for the dev admin group (Azure resource management).
+resource "azurerm_role_assignment" "dev_group_owner" {
+  scope                = module.aks.id
+  role_definition_name = "Owner"
+  principal_id         = var.dev_admin_group_object_id
+}
+
+# Cluster-level Kubernetes admin for the dev admin group (kubectl / k9s access).
+resource "azurerm_role_assignment" "dev_group_aks_admin" {
+  scope                = module.aks.id
+  role_definition_name = "Azure Kubernetes Service RBAC Cluster Admin"
+  principal_id         = var.dev_admin_group_object_id
+}
+
+# Namespace-scoped access — one module call per namespace.
+module "namespace_rbac" {
+  for_each = var.namespace_rbac
+
+  source = "../modules/aks-namespace-rbac"
+
+  cluster_id           = module.aks.id
+  namespace            = each.key
+  admin_principal_ids  = each.value.admin_principal_ids
+  reader_principal_ids = each.value.reader_principal_ids
+}

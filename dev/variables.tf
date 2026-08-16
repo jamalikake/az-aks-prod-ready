@@ -155,3 +155,18 @@ variable "api_server_authorized_ip_ranges" {
   type        = list(string)
   default     = []
 }
+
+variable "dev_admin_group_object_id" {
+  description = "Object ID of the Entra ID group that gets Owner + AKS RBAC Cluster Admin on the dev cluster."
+  type        = string
+  default     = ""
+}
+
+variable "namespace_rbac" {
+  description = "Map of Kubernetes namespaces to RBAC principal lists. Each key is a namespace name; value specifies admin and reader principal object IDs."
+  type = map(object({
+    admin_principal_ids  = optional(list(string), [])
+    reader_principal_ids = optional(list(string), [])
+  }))
+  default = {}
+}
