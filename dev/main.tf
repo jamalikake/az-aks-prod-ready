@@ -139,6 +139,17 @@ resource "azurerm_role_assignment" "dev_group_aks_admin" {
   principal_id         = var.dev_admin_group_object_id
 }
 
+module "argocd" {
+  source = "../modules/argocd"
+
+  namespace           = var.argocd_namespace
+  chart_version       = var.argocd_chart_version
+  server_service_type = var.argocd_server_service_type
+  ha_enabled          = var.argocd_ha_enabled
+
+  depends_on = [module.aks]
+}
+
 # Namespace-scoped access — one module call per namespace.
 module "namespace_rbac" {
   for_each = var.namespace_rbac

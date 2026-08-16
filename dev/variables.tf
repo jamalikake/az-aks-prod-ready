@@ -170,3 +170,27 @@ variable "namespace_rbac" {
   }))
   default = {}
 }
+
+variable "argocd_namespace" {
+  description = "Kubernetes namespace for ArgoCD."
+  type        = string
+  default     = "argocd"
+}
+
+variable "argocd_chart_version" {
+  description = "ArgoCD Helm chart version to deploy."
+  type        = string
+  default     = "7.7.23"
+}
+
+variable "argocd_server_service_type" {
+  description = "Service type for the ArgoCD server (LoadBalancer gives a public Azure LB IP)."
+  type        = string
+  default     = "LoadBalancer"
+}
+
+variable "argocd_ha_enabled" {
+  description = "Deploy ArgoCD in HA mode. Keep false for dev."
+  type        = bool
+  default     = false
+}

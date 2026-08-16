@@ -65,6 +65,9 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
+      - name: Install kubelogin
+        run: az aks install-cli --install-location /usr/local/bin/kubectl --kubelogin-install-location /usr/local/bin/kubelogin
+
       # Backend storage account/container are environment-scoped GitHub
       # Variables (not secrets - they're resource names, not credentials).
       # The blob key (dev.tfstate/uat.tfstate/prod.tfstate) is already
@@ -164,6 +167,9 @@ jobs:
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Install kubelogin
+        run: az aks install-cli --install-location /usr/local/bin/kubectl --kubelogin-install-location /usr/local/bin/kubelogin
 
       - name: Terraform Init
         run: |

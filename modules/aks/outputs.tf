@@ -19,6 +19,17 @@ output "node_resource_group" {
   value = azurerm_kubernetes_cluster.this.node_resource_group
 }
 
+output "host" {
+  description = "API server hostname — used to configure the helm/kubernetes provider."
+  value       = azurerm_kubernetes_cluster.this.kube_config[0].host
+}
+
+output "cluster_ca_certificate" {
+  description = "Base64-encoded cluster CA certificate — used to configure the helm/kubernetes provider."
+  value       = azurerm_kubernetes_cluster.this.kube_config[0].cluster_ca_certificate
+  sensitive   = true
+}
+
 # No kube_config/kube_config_raw output: local_account_disabled = true means
 # the cluster has no static admin credentials. Access is via Azure AD -
 # `az aks get-credentials` + kubelogin - see the environment README.
