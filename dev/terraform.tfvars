@@ -54,9 +54,11 @@ key_vault_soft_delete_retention_days    = 7
 log_analytics_sku               = "PerGB2018"
 log_analytics_retention_in_days = 30
 
-# Public API server for local kubectl/k9s access — update ip when your public IP changes
+# Public API server — no IP restriction so GitHub Actions runners can reach the cluster.
+# Security is enforced entirely by Azure RBAC (Azure AD token required for all kubectl access).
+# Add your home IP here only if you want an extra network-level guard (CI will break if you do).
 private_cluster_enabled         = false
-api_server_authorized_ip_ranges = ["101.0.63.232/32"]
+api_server_authorized_ip_ranges = []
 
 # Entra ID group: grp-aks-dev-admins (created 2026-08-16)
 dev_admin_group_object_id = "3fabc5a2-229a-46c2-bdfa-b941f61d16c2"
