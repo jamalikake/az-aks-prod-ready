@@ -92,3 +92,15 @@ If a destroy fails and the RG is stuck, delete the solution manually first: `az 
 **`count` with unknown values:** `count = var.x != null ? 1 : 0` fails at plan time if `var.x` is derived from a resource output (unknown until apply). Always use a dedicated static `bool` variable (`private_dns_zone_contributor_enabled`, `enable_diagnostics`, etc.) and pass `true`/`false` from the parent module — never wire a resource output into a count expression.
 
 **vCPU quota (Pay-As-You-Go):** the default regional Total vCPU limit is 10. Dev system pool (Standard_D2s_v3 = 2 vCPUs) + UAT system pool (Standard_D4s_v3 × 2 = 8 vCPUs) = 10/10. Dev's user node pool has `min_count = 0` so it starts with zero nodes and doesn't consume quota at rest. If both dev and UAT are deployed simultaneously, there's no headroom for UAT user nodes. Request a quota increase or reduce VM sizes before deploying both environments at full scale.
+
+**AKS RBAC roles — two separate planes:** with `azure_rbac_enabled = true` there are two distinct roles that are often confused:
+- `Azure Kubernetes Service Cluster Admin Role` — management plane only; lets you pull admin kubeconfig (`az aks get-credentials`). Does **not** grant `kubectl` access.
+- `Azure Kubernetes Service RBAC Cluster Admin` — data plane; grants cluster-admin inside Kubernetes. This is the one required for `kubectl get nodes` and all other API server calls.
+
+Both are needed for a developer who needs full access. Assign both at the cluster scope:
+```bash
+CLUSTER_ID=$(az aks show -g <rg> -n <cluster> --query id -o tsv)
+az role assignment create --assignee <object-id> --role "Azure Kubernetes Service Cluster Admin Role" --scope "$CLUSTER_ID"
+az role assignment create --assignee <object-id> --role "Azure Kubernetes Service RBAC Cluster Admin" --scope "$CLUSTER_ID"
+```
+Allow up to 5 minutes for RBAC propagation before `kubectl` commands stop returning Forbidden errors.
