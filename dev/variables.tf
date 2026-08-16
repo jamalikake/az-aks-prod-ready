@@ -143,3 +143,15 @@ variable "log_analytics_retention_in_days" {
   type    = number
   default = 30
 }
+
+variable "private_cluster_enabled" {
+  description = "Whether the API server is only reachable via a private endpoint. Set false in dev for local kubectl/k9s access."
+  type        = bool
+  default     = false
+}
+
+variable "api_server_authorized_ip_ranges" {
+  description = "CIDR ranges allowed to reach the public API server. Only applies when private_cluster_enabled = false."
+  type        = list(string)
+  default     = []
+}

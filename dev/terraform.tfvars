@@ -53,3 +53,7 @@ key_vault_soft_delete_retention_days    = 7
 
 log_analytics_sku               = "PerGB2018"
 log_analytics_retention_in_days = 30
+
+# Public API server for local kubectl/k9s access — update ip when your public IP changes
+private_cluster_enabled         = false
+api_server_authorized_ip_ranges = ["101.0.63.232/32"]

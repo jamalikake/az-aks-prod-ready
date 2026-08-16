@@ -42,6 +42,12 @@ variable "private_cluster_enabled" {
   default     = true
 }
 
+variable "api_server_authorized_ip_ranges" {
+  description = "List of CIDR ranges allowed to reach the public API server endpoint. Only used when private_cluster_enabled = false. Set to your public IP (e.g. [\"1.2.3.4/32\"]) for local kubectl/k9s access."
+  type        = list(string)
+  default     = []
+}
+
 variable "private_dns_zone_id" {
   description = "ID of the privatelink.<region>.azmk8s.io private DNS zone. Required when private_cluster_enabled is true and a custom VNet is used."
   type        = string

@@ -57,7 +57,7 @@ module "identity" {
   location                             = var.location
   vnet_id                              = module.network.vnet_id
   private_dns_zone_id                  = module.network.aks_private_dns_zone_id
-  private_dns_zone_contributor_enabled = true
+  private_dns_zone_contributor_enabled = var.private_cluster_enabled
   tags                                 = local.common_tags
 }
 
@@ -93,22 +93,24 @@ module "acr" {
 module "aks" {
   source = "../modules/aks"
 
-  name                       = "aks-${local.name_prefix}"
-  resource_group_name        = module.resource_group.name
-  location                   = var.location
-  dns_prefix                 = local.name_prefix
-  kubernetes_version         = var.kubernetes_version
-  sku_tier                   = var.sku_tier
-  private_dns_zone_id        = module.network.aks_private_dns_zone_id
-  identity_id                = module.identity.id
-  vnet_subnet_id             = module.network.subnet_ids["snet-aks"]
-  tenant_id                  = data.azurerm_client_config.current.tenant_id
-  admin_group_object_ids     = var.admin_group_object_ids
-  automatic_channel_upgrade  = var.automatic_channel_upgrade
-  log_analytics_workspace_id = module.log_analytics.id
-  default_node_pool          = var.default_node_pool
-  user_node_pools            = var.user_node_pools
-  tags                       = local.common_tags
+  name                            = "aks-${local.name_prefix}"
+  resource_group_name             = module.resource_group.name
+  location                        = var.location
+  dns_prefix                      = local.name_prefix
+  kubernetes_version              = var.kubernetes_version
+  sku_tier                        = var.sku_tier
+  private_cluster_enabled         = var.private_cluster_enabled
+  private_dns_zone_id             = var.private_cluster_enabled ? module.network.aks_private_dns_zone_id : null
+  api_server_authorized_ip_ranges = var.api_server_authorized_ip_ranges
+  identity_id                     = module.identity.id
+  vnet_subnet_id                  = module.network.subnet_ids["snet-aks"]
+  tenant_id                       = data.azurerm_client_config.current.tenant_id
+  admin_group_object_ids          = var.admin_group_object_ids
+  automatic_channel_upgrade       = var.automatic_channel_upgrade
+  log_analytics_workspace_id      = module.log_analytics.id
+  default_node_pool               = var.default_node_pool
+  user_node_pools                 = var.user_node_pools
+  tags                            = local.common_tags
 
   # Ensures the identity's Network Contributor + Private DNS Zone Contributor
   # role assignments exist before AKS tries to join the VNet / write its DNS record.

@@ -11,6 +11,13 @@ resource "azurerm_kubernetes_cluster" "this" {
   private_dns_zone_id                 = var.private_cluster_enabled ? var.private_dns_zone_id : null
   private_cluster_public_fqdn_enabled = false
 
+  dynamic "api_server_access_profile" {
+    for_each = !var.private_cluster_enabled && length(var.api_server_authorized_ip_ranges) > 0 ? [1] : []
+    content {
+      authorized_ip_ranges = var.api_server_authorized_ip_ranges
+    }
+  }
+
   oidc_issuer_enabled       = true
   workload_identity_enabled = true
 
